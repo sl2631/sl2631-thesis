@@ -27,7 +27,7 @@ ff = open(filter_path, 'a')
 
 def handle_message(message):
   # keys: ['from', 'uid', 'label', 'to', 'parts', 'date', 'subject']
-  sender = message['from']
+  sender = unicode(message['from']).encode('ascii', 'replace') # must make addresses ascii-clean before writing to filter file
   if not sender: # some from headers were missing
     print('missing sender: uid:', message['uid'])
     return
@@ -46,8 +46,8 @@ def handle_message(message):
   while choice not in {'y', 'n'}:
     if choice:
       print('invalid choice:', choice)
-    prompt = '\nfrom: {from}\nto: {to}\nsubject: {subject}\n(y/n)> '.format(**message)
-    choice = raw_input(prompt).strip()
+    prompt = u'\nfrom: {from}\nto: {to}\nsubject: {subject}\n(y/n)> '.format(**message)
+    choice = raw_input(prompt.encode('utf-8')).strip()
   allowed = (choice == 'y')
   filter_dict[address] = allowed
   filter_string = '{} {}'.format(('+' if allowed else '-'), address)
@@ -61,7 +61,12 @@ try:
       messages = pickle.load(f)
       print(in_path, 'count:', len(messages))
       for message in messages:
-        handle_message(message)
+        try:
+          handle_message(message)
+        except:
+          print("failed with message:")
+          pprint(message)
+          raise
 
 except:
   ff.close() # want to make sure we flush all data before exiting
