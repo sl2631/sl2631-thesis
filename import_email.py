@@ -18,8 +18,13 @@ from pprint import pprint
 
 server = 'imap.gmail.com'
 username, password = sys.argv[1:3]
+labels_to_fetch = sys.argv[3:]
 
 root_dir = username
+
+if not os.path.isdir(root_dir):
+  print('making dir:', root_dir)
+  os.makedirs(root_dir)
 
 
 # comment out the labels that you do not want excluded
@@ -90,11 +95,6 @@ def write_pickle(obj, path):
 def fetch_label(label):
   label_safe = re.sub('[^0-9a-zA-Z_]', '_', label)
 
-  dst_dir = os.path.join(root_dir, label_safe)
-  if not os.path.isdir(dst_dir):
-    print('making dir:', dst_dir)
-    os.makedirs(dst_dir)
-
   select_label(label)
   status, data = account.uid('search', None, 'ALL')
   assert status == 'OK'
@@ -134,13 +134,14 @@ def fetch_label(label):
       'subject' : headers.get('Subject'),
     }
 
-    out_path = os.path.join(dst_dir, '{}.pickle'.format(uid))
-    write_pickle(message_dict, out_path)
+    # used to write a pickle for each message; not useful at this point
+    if False:
+      out_path = os.path.join(dst_dir, '{}.pickle'.format(uid))
+      write_pickle(message_dict, out_path)
     messages.append(message_dict)
 
   out_path = os.path.join(root_dir, label_safe + '.pickle')
   write_pickle(messages, out_path)
-  return messages
 
 
 def fetch_all_labels():
@@ -164,15 +165,11 @@ def fetch_all_labels():
 
   # python docs example suggests we can select everything as follows:
   #account.select()
-  labels_dict = {}
   # for now, iterate over each label
   for label in labels:
-    labels_dict[label] = fetch_label(label)
-
-  return labels_dict
+    if labels_to_fetch and label not in labels_to_fetch:
+      continue
+    fetch_label(label)
 
 
 labels_dict = fetch_all_labels()
-print('\nwriting pickle...')
-out_path = username + '.pickle'
-write_path(labels_dict, out_path)
