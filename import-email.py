@@ -166,7 +166,7 @@ def fetch_all_labels():
   print('\nall labels:')
   pprint(all_labels)
 
-  labels = [l for l in all_labels if l not in excluded_labels]
+  labels = [l for l in all_labels if (labels_to_fetch or not l in excluded_labels)]
   print('\nlabels:')
   pprint(labels)
 
