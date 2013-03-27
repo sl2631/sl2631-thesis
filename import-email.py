@@ -18,7 +18,7 @@ from pprint import pprint
 
 server = 'imap.gmail.com'
 username, password = sys.argv[1:3]
-labels_to_fetch = sys.argv[3:]
+labels_to_fetch = sys.argv[3:] # optional
 
 root_dir = username
 
@@ -78,7 +78,10 @@ def dates_for_month(year, month):
 
 
 def search_by_send_date(date):
-  'search for messages by send date; return a list of ids.'
+  '''
+  search for messages by send date; return a list of ids.
+  NOTE: this is untested code from a previous example; note it also searches for a specific hard-coded sender.
+  '''
   imap_date = date.strftime("%d-%b-%Y")
   status, data = account.uid('search', None, '(SENTON {date} HEADER TO itp-students@lists.nyu.edu)'.format(date=imap_date))
   assert status == 'OK'
@@ -114,6 +117,9 @@ def fetch_label(label):
     assert status == 'OK'
     # data is a list of tuples
     email_tuple = data[0]
+    if not email_tuple:
+      print('empty email_tuple:', email_tuple)
+      continue
     # each tuple has format: ('0 (UID 0 RFC822 {11287}', contents, ')')
     message = email.message_from_string(email_tuple[1])
     parts = []
@@ -128,10 +134,11 @@ def fetch_label(label):
       'uid'   : uid,
       'label' : label,
       'parts' : parts,
-      'from'  : headers.get('From'),
-      'to'    : headers.get('To'),
-      'date'  : headers.get('Date'),
-      'subject' : headers.get('Subject'),
+      # use empty strings as defaults 
+      'from'  : headers.get('From', ''),
+      'to'    : headers.get('To', ''),
+      'date'  : headers.get('Date', ''),
+      'subject' : headers.get('Subject', ''),
     }
 
     # used to write a pickle for each message; not useful at this point
