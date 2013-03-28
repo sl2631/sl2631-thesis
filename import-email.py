@@ -1,18 +1,14 @@
 #!/usr/bin/env python2.7
 
 from __future__ import print_function
+from __future__ import unicode_literals
 
-import datetime
-import calendar
 import imaplib
-import email
-import email.header
 import sys
-import pickle
 import re
 import os
 import os.path
-
+import thesis_util
 from pprint import pprint
 
 
@@ -20,7 +16,7 @@ server = 'imap.gmail.com'
 username, password = sys.argv[1:3]
 labels_to_fetch = sys.argv[3:] # optional
 
-root_dir = username
+root_dir = username + '-data'
 
 if not os.path.isdir(root_dir):
   print('making dir:', root_dir)
@@ -52,31 +48,6 @@ def select_label(label):
   print('label_count:', status, label_count)
 
 
-def decode_string(string, charset):
-  if charset is None:
-    charset = 'utf-8'
-  return string.decode(encoding=charset, errors='replace')
-
-
-def decode_header(h):
-  'convert an encoded email header into a unicode string.'
-  decoded_list = email.header.decode_header(h)
-  #print('decode_list:', decoded_list)
-  decoded_first = decoded_list[0]
-  string, charset = decoded_first
-  return decode_string(string, charset)
-  # note: reportlab probably expects the string to be converted into utf-8
-  #converted = s.encode('utf-8')
-
-
-def dates_for_month(year, month):
-  dates = []
-  for i in range(calendar.monthrange(year, month)[1]):
-    date = datetime.date(year, month, i + 1)
-    dates.append(date)
-  return dates
-
-
 def search_by_send_date(date):
   '''
   search for messages by send date; return a list of ids.
@@ -88,11 +59,6 @@ def search_by_send_date(date):
   ids = data[0] # data is a list.
   id_list = ids.split() # ids is a space separated string
   return id_list
-
-
-def write_pickle(obj, path):
-  with open(path, 'w') as f:
-    pickle.dump(obj, f)
 
 
 def fetch_label(label):
@@ -115,40 +81,10 @@ def fetch_label(label):
     # uid is also the name of our local variable
     status, data = account.uid('fetch', uid, "(RFC822)")
     assert status == 'OK'
-    # data is a list of tuples
-    email_tuple = data[0]
-    if not email_tuple:
-      print('empty email_tuple:', email_tuple)
-      continue
-    # each tuple has format: ('0 (UID 0 RFC822 {11287}', contents, ')')
-    message = email.message_from_string(email_tuple[1])
-    parts = []
-    for part in message.walk():
-      # each part is a either non-multipart, or a multipart message that contains further parts.
-      # for now only pay attention to the text parts (leaves of a the multipart tree).
-      if part.get_content_type() == 'text/plain':
-        parts.append(decode_string(part.get_payload(), part.get_charset()))
-
-    headers = { k : decode_header(message[k]) for k in message.keys() }
-    message_dict = {
-      'uid'   : uid,
-      'label' : label,
-      'parts' : parts,
-      # use empty strings as defaults 
-      'from'  : headers.get('From', ''),
-      'to'    : headers.get('To', ''),
-      'date'  : headers.get('Date', ''),
-      'subject' : headers.get('Subject', ''),
-    }
-
-    # used to write a pickle for each message; not useful at this point
-    if False:
-      out_path = os.path.join(dst_dir, '{}.pickle'.format(uid))
-      write_pickle(message_dict, out_path)
-    messages.append(message_dict)
+    messages.append(data)
 
   out_path = os.path.join(root_dir, label_safe + '.pickle')
-  write_pickle(messages, out_path)
+  thesis_util.write_pickle(messages, out_path)
 
 
 def fetch_all_labels():
