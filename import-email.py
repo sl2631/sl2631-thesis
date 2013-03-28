@@ -13,8 +13,9 @@ from pprint import pprint
 
 
 server = 'imap.gmail.com'
-username, password = sys.argv[1:3]
-labels_to_fetch = sys.argv[3:] # optional
+username, password, start_uid_str = sys.argv[1:4]
+start_uid = int(start_uid_str)
+labels_to_fetch = sys.argv[4:] # optional
 
 root_dir = username + '-data'
 
@@ -73,17 +74,26 @@ def fetch_label(label):
 
   limit = -1
   messages = []
-  for index, uid in enumerate(uid_list):
-    if limit >= 0 and index >= limit:
-      break
-    print("fetching:", uid)
-    # uid is the name of the function for sending IMAP commands using UIDs instead of numerical indices
-    # uid is also the name of our local variable
-    status, data = account.uid('fetch', uid, "(RFC822)")
-    assert status == 'OK'
-    messages.append(data)
-
-  out_path = os.path.join(root_dir, label_safe + '.pickle')
+  last_uid = 'none'
+  try:
+    for index, uid in enumerate(uid_list):
+      if uid < start_uid:
+        continue
+      if limit >= 0 and index >= limit: # debug limit
+        break
+      print("fetching:", uid, end='\r')
+      sys.stdout.flush()
+      # uid is the name of the function for sending IMAP commands using UIDs instead of numerical indices
+      # uid is also the name of our local variable
+      status, data = account.uid('fetch', uid, "(RFC822)")
+      assert status == 'OK'
+      messages.append(data)
+      last_uid = uid
+  except BaseException as e:
+    print('\nfailed at uid:', uid, '\n', e)
+  else:
+    print()
+  out_path = os.path.join(root_dir, '{}-{}-{}.pickle'.format(label_safe, start_uid, last_uid))
   thesis_util.write_pickle(messages, out_path)
 
 
