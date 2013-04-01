@@ -2,6 +2,9 @@
 thesis utility functions common across scripts.
 '''
 
+from __future__ import print_function
+from __future__ import unicode_literals
+
 import calendar
 import datetime
 import sys
@@ -10,19 +13,36 @@ import email
 import email.header
 
 import nltk.tokenize
+from pprint import pprint
 
 
-sender_filter_path = 'slaffont.filter'
+address_filter_path = 'slaffont-address-filter.txt'
+
+
+def progress(i):
+  if i % 1000 == 0:
+    print('\r{}k'.format(i // 1000), end='', file=sys.stderr)
+    sys.stderr.flush()
+
+
+def plabel(label, obj):
+  print(label)
+  pprint(obj)
 
 
 def read_pickle(path):
-  with open(path, 'r') as f:
+  with open(path) as f:
     return pickle.load(f)
 
 
 def write_pickle(obj, path):
   with open(path, 'w') as f:
     pickle.dump(obj, f)
+
+
+def read_word_list(path):
+  with open(path) as f:
+    return { line.decode('utf-8').strip() for line in f }
 
 
 def dates_for_month(year, month):

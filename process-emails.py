@@ -8,17 +8,29 @@ import re
 import os.path
 import email
 import email.header
-import thesis_util
-from pprint import pprint
+from thesis_util import *
 
 
-in_paths = sys.argv[1:]
+out_path = sys.argv[1]
+in_paths = sys.argv[2:]
 
+
+useful_header_keys = [
+  'cc',
+  'date',
+  'from',
+  'subject',
+  'to',
+]
+
+charset_encoding = {
+  None : 'utf-8',
+  'windows-1252http-equivcontent-type' : 'windows-1252',
+}
 
 def decode_string(string, charset):
-  if charset is None:
-    charset = 'utf-8'
-  return string.decode(encoding=charset, errors='replace')
+  enc = charset_encoding.get(charset, charset)
+  return string.decode(encoding=enc, errors='replace')
 
 
 def decode_header(h):
@@ -28,8 +40,6 @@ def decode_header(h):
   decoded_first = decoded_list[0]
   string, charset = decoded_first
   return decode_string(string, charset)
-  # note: reportlab probably expects the string to be converted into utf-8
-  #converted = s.encode('utf-8')
 
 
 def process_message_data(data):
@@ -50,31 +60,24 @@ def process_message_data(data):
       content_charset = part.get_content_charset()
       parts.append(decode_string(payload, content_charset))
 
-  headers = { k : decode_header(message[k]) for k in message.keys() }
-  return {  
-    'text' : '\n'.join(parts),
-    # use empty strings as defaults to ease error handling
-    'from'  : headers.get('From', ''),
-    'to'    : headers.get('To', ''),
-    'date'  : headers.get('Date', ''),
-    'subject' : headers.get('Subject', ''),
-  }
+  headers = { unicode(k.lower()) : decode_header(message[k]) for k in message.keys() if k.lower() in useful_header_keys }
+  msg = { 'text' : '\n'.join(parts) }
+  for k in useful_header_keys:
+    msg[k] = headers.get(k, '')
+  return msg
 
 
+messages = []
 for in_path in in_paths:
-  in_dir, in_name = os.path.split(in_path)
-  end = '-data'
-  assert in_dir.endswith(end)
-  out_dir = in_dir[:-len(end)]
-  out_path = os.path.join(out_dir, in_name)
-  if not os.path.isdir(out_dir):
-    os.makedirs(out_dir)
-  in_messages = thesis_util.read_pickle(in_path)
-  out_messages = []
+  print('reading:', in_path)
+  in_messages = read_pickle(in_path)
   for index, data in enumerate(in_messages):
-    out_message = process_message_data(data)
+    progress(index)
+    m = process_message_data(data)
     if False:
-      pprint(out_message)
-      print('{}: {from} - {to} - {subject}\n{text}'.format(index, **out_message))
-    out_messages.append(out_message)
-  thesis_util.write_pickle(out_messages, out_path)
+      pprint(m)
+    messages.append(m)
+  print()
+
+print('writing:', out_path)
+write_pickle(messages, out_path)

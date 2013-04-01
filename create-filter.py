@@ -7,21 +7,23 @@ import sys
 import pickle
 import re
 import thesis_util
-from thesis_util import sender_filter_path
+from thesis_util import address_filter_path
 from pprint import pprint
 
 
 in_paths = sys.argv[1:]
+if not in_paths:
+  in_paths = ['slaffont-emails/all_mail.pickle']
 
 try:
-  sender_filter_dict = thesis_util.load_filter(sender_filter_path)
+  address_filter_dict = thesis_util.load_filter(address_filter_path)
 except IOError:
-  print('no existing filter:', sender_filter_path)
-  sender_filter_dict = {}
+  print('no existing filter:', address_filter_path)
+  address_filter_dict = {}
 
 
 email_re = re.compile('<(.+)>')
-ff = open(sender_filter_path, 'a')
+ff = open(address_filter_path, 'a')
 
 def handle_message(message):
   sender = message['from']
@@ -35,7 +37,7 @@ def handle_message(message):
     # just assume that the whole sender string is the address
     # TODO: we could use another regex to validate this address but it's a pain
     address = sender
-  if address in sender_filter_dict:
+  if address in address_filter_dict:
     return # we have already created a filter rule for this address
 
   # present the user with a choice
@@ -46,7 +48,7 @@ def handle_message(message):
     prompt = '\nfrom: {from}\nto: {to}\nsubject: {subject}\n(y/n)> '.format(**message)
     choice = raw_input(prompt.encode('utf-8')).strip()
   allowed = (choice == 'y')
-  sender_filter_dict[address] = allowed
+  address_filter_dict[address] = allowed
   filter_string = '{} {}'.format(('+' if allowed else '-'), address)
   print(filter_string)
   ff.write(filter_string.encode('utf-8'))

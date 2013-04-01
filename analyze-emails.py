@@ -7,21 +7,25 @@ import collections
 import sys
 import re
 import nltk
+import nltk.stem
 import thesis_util
-from thesis_util import sender_filter_path
+
+from thesis_util import *
 from pprint import pprint
 
-in_paths = sys.argv[1:]
 
-sender_filter_neg = thesis_util.load_filter_neg(sender_filter_path)
-word_counter = collections.Counter()
+modes = { 'scan', 'dump' }
 
+# regexes remove uninteresting parts of messages
+# two basic categories; those that scan across lines (DOTALL) and those that matcha  single line.
 scrub_regexes = \
 [re.compile(p, flags=re.DOTALL | re.MULTILINE) for p in [
 # patterns that scan across lines need dot to include \n
-  r'^On [^\n]+ at [^\n]+, [^\n]+ wrote:.*',
+  r'^On [^\n]+ at [^\n]+, [^\n]+ ?wrote:.*',
   r'^----- Original Message -----.*',
+  r'^------Original Message------.*',
   r'^Sent from my .+',
+  r'^Admissions, Special Events, Alumni Coordinator.*',
 ]] + \
 [re.compile(p, flags=re.MULTILINE) for p in [
 # patterns that scan per line need ^ to match each start of line
@@ -31,25 +35,99 @@ scrub_regexes = \
 ]]
 
 
-def scrub(part):
-  for r in scrub_regexes:
-    part = r.sub('', part)
-  return part
+# NLP tools
 
+_lemmatizer = nltk.stem.WordNetLemmatizer()
+def lemmatize(word):
+  '''
+  returns word unchanged if not found. does not appear to handle the following:
+  - gerunds, e.g. 'running'
+  - irregular past tense, e.g. 'ran'
+  '''
+  return _lemmatizer.lemmatize(word)
+
+
+_lancaster_stemmer = nltk.stem.lancaster.LancasterStemmer()
+def stem_heavy(word):
+  return _lancaster_stemmer.stem(word)
+
+
+# command line args
+
+def error(msg):
+  print('error:', msg)
+  print('specify mode as first argument; options are:', modes)
+  sys.exit(1)
+
+try:
+  mode = unicode(sys.argv[1])
+  if mode not in modes:
+    error('invalid mode')
+except IndexError:
+  error('no mode specified')
+dump_msg = (mode == 'dump')
+scan_msg = (mode == 'scan')
+
+in_paths = sys.argv[2:]
+if not in_paths:
+  in_paths = ['slaffont-emails/all_mail.pickle']
+
+
+# stats
+stats = collections.defaultdict(collections.Counter)
+def count(group, key):
+  stats[group][key] += 1
+
+message_count = 0
+skip_count = 0
+word_counter = stats['words']
+
+def scrub(text):
+  for r in scrub_regexes:
+    text = r.sub('', text)
+  return text
+
+
+def scan(text):
+  tokens = thesis_util.sent_word_tokenize(text) # nested sentence->words
+  for sentence in tokens:
+    word_counter.update(sentence)
+
+
+address_filter_neg = thesis_util.load_filter_neg(address_filter_path)
 
 for in_path in in_paths:
   messages = thesis_util.read_pickle(in_path)
-  print(in_path, 'count:', len(messages))
+  print('\n', in_path, sep='')
   for index, message in enumerate(messages):
-    sender = message['from']
-    if sender in sender_filter_neg:
+    #if index > 2000: break
+    addr_from = message['from']
+    addr_to = message['to']
+    if addr_from in address_filter_neg or addr_to in address_filter_neg:
+      skip_count += 1
       continue
+    message_count +=1
+    # dump
     subject = message['subject']
-    print('*' * 64, '\n', sender, '-', subject)
     text = scrub(message['text'])
-    print('-' * 64, '\n', text, sep='')
-    tokens = thesis_util.sent_word_tokenize(text) # nested sentence->words
-    for sentence in tokens:
-      word_counter.update(sentence)
-         
-pprint(sorted(word_counter.items(), key=lambda p: p[1]))
+    if dump_msg:
+      print('=' * 96)
+      print(addr_from, '-', addr_to, '-', subject)
+      print('-' * 96)
+      print(text)
+    else:
+      progress(index)
+    if scan_msg:
+      scan(subject)
+      scan(text)
+
+if scan_msg:
+  print()
+  for name, counter in sorted(stats.items()):
+    print('\n', name, '; count = ', len(counter), sep='')
+    for k, count in sorted(counter.items(), key=lambda p: p[1]):
+      print('{:>5}: {}'.format(count, k))
+
+
+print('messages used:', message_count)
+print('messages skipped:', skip_count)
