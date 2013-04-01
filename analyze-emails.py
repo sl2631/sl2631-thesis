@@ -16,6 +16,8 @@ from pprint import pprint
 
 modes = { 'scan', 'dump' }
 
+word_re = re.compile("^[-'\w]+$")
+
 # regexes remove uninteresting parts of messages
 # two basic categories; those that scan across lines (DOTALL) and those that matcha  single line.
 scrub_regexes = \
@@ -65,8 +67,8 @@ try:
     error('invalid mode')
 except IndexError:
   error('no mode specified')
-dump_msg = (mode == 'dump')
-scan_msg = (mode == 'scan')
+is_mode_dump = (mode == 'dump')
+is_mode_scan = (mode == 'scan')
 
 in_paths = sys.argv[2:]
 if not in_paths:
@@ -74,13 +76,19 @@ if not in_paths:
 
 
 # stats
-stats = collections.defaultdict(collections.Counter)
-def count(group, key):
-  stats[group][key] += 1
-
 message_count = 0
 skip_count = 0
-word_counter = stats['words']
+
+if is_mode_scan:
+
+  stats = collections.defaultdict(collections.Counter)
+  def count(group, key):
+    stats[group][key] += 1
+
+  words = stats['words']
+  non_words = stats['non-words']
+
+
 
 def scrub(text):
   for r in scrub_regexes:
@@ -89,9 +97,14 @@ def scrub(text):
 
 
 def scan(text):
-  tokens = thesis_util.sent_word_tokenize(text) # nested sentence->words
-  for sentence in tokens:
-    word_counter.update(sentence)
+  sentences = thesis_util.sent_word_tokenize(text) # nested sentence->words
+  for sentence in sentences:
+    for t in sentence:
+      m =  word_re.match(t)
+      if m:
+        words[t.lower()] += 1
+      else:
+        non_words[t.lower()] += 1
 
 
 address_filter_neg = thesis_util.load_filter_neg(address_filter_path)
@@ -100,7 +113,7 @@ for in_path in in_paths:
   messages = thesis_util.read_pickle(in_path)
   print('\n', in_path, sep='')
   for index, message in enumerate(messages):
-    #if index > 2000: break
+    if index > 1000: break
     addr_from = message['from']
     addr_to = message['to']
     if addr_from in address_filter_neg or addr_to in address_filter_neg:
@@ -110,18 +123,18 @@ for in_path in in_paths:
     # dump
     subject = message['subject']
     text = scrub(message['text'])
-    if dump_msg:
+    if is_mode_dump:
       print('=' * 96)
       print(addr_from, '-', addr_to, '-', subject)
       print('-' * 96)
       print(text)
     else:
       progress(index)
-    if scan_msg:
+    if is_mode_scan:
       scan(subject)
       scan(text)
 
-if scan_msg:
+if is_mode_scan:
   print()
   for name, counter in sorted(stats.items()):
     print('\n', name, '; count = ', len(counter), sep='')
