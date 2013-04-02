@@ -53,6 +53,7 @@ def handle_message(message):
   print(filter_string)
   ff.write(filter_string.encode('utf-8'))
   ff.write('\n')
+  ff.flush()
 
 for in_path in in_paths:
   messages = thesis_util.read_pickle(in_path)
