@@ -113,7 +113,7 @@ for in_path in in_paths:
   messages = thesis_util.read_pickle(in_path)
   print('\n', in_path, sep='')
   for index, message in enumerate(messages):
-    if index > 1000: break
+    #if index > 1000: break
     addr_from = message['from']
     addr_to = message['to']
     if addr_from in address_filter_neg or addr_to in address_filter_neg:
