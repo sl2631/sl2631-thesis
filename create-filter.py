@@ -49,10 +49,9 @@ def handle_message(message):
     choice = raw_input(prompt.encode('utf-8')).strip()
   allowed = (choice == 'y')
   address_filter_dict[address] = allowed
-  filter_string = '{} {}'.format(('+' if allowed else '-'), address)
-  print(filter_string)
+  filter_string = '{} {}\n'.format(('+' if allowed else '-'), address)
+  print(filter_string, end='')
   ff.write(filter_string.encode('utf-8'))
-  ff.write('\n')
   ff.flush()
 
 for in_path in in_paths:
