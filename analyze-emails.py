@@ -57,8 +57,8 @@ def stem_heavy(word):
 # command line args
 
 def error(msg):
-  print('error:', msg)
-  print('specify mode as first argument; options are:', modes)
+  errL('error:', msg)
+  errL('specify mode as first argument; options are:', modes)
   sys.exit(1)
 
 try:
@@ -80,14 +80,14 @@ message_count = 0
 skip_count = 0
 
 if is_mode_scan:
-
   stats = collections.defaultdict(collections.Counter)
   def count(group, key):
     stats[group][key] += 1
-
   words = stats['words']
   non_words = stats['non-words']
-
+else:
+  def count(group, key):
+    pass
 
 
 def scrub(text):
@@ -109,38 +109,59 @@ def scan(text):
 
 address_filter_neg = thesis_util.load_filter_neg(address_filter_path)
 
+
+def handle_message(index, message):
+  global message_count, skip_count
+  addr_from = message['from']
+  addr_to = message['to']
+  if addr_from in address_filter_neg or addr_to in address_filter_neg:
+    skip_count += 1
+    count('skip-from', addr_from)
+    count('skip-to', addr_to)
+    return
+  message_count +=1
+  count('from', addr_from)
+  count('to', addr_to)
+
+  # dump
+  subject = message['subject']
+  text = scrub(message['text'])
+  if is_mode_dump:
+    print('=' * 96)
+    print(addr_from, '-', addr_to, '-', subject)
+    print('-' * 96)
+    print(text)
+  else:
+    progress(index)
+  if is_mode_scan:
+    scan(subject)
+    scan(text)
+
+
 for in_path in in_paths:
   messages = thesis_util.read_pickle(in_path)
   print('\n', in_path, sep='')
-  for index, message in enumerate(messages):
-    #if index > 1000: break
-    addr_from = message['from']
-    addr_to = message['to']
-    if addr_from in address_filter_neg or addr_to in address_filter_neg:
-      skip_count += 1
-      continue
-    message_count +=1
-    # dump
-    subject = message['subject']
-    text = scrub(message['text'])
-    if is_mode_dump:
-      print('=' * 96)
-      print(addr_from, '-', addr_to, '-', subject)
-      print('-' * 96)
-      print(text)
-    else:
-      progress(index)
-    if is_mode_scan:
-      scan(subject)
-      scan(text)
+  for i, m in enumerate(messages):
+    try:
+      handle_message(i, m)
+    except:
+      errL('error at index:', i)
+      raise
 
 if is_mode_scan:
-  print()
+  errL() # for progress line
   for name, counter in sorted(stats.items()):
-    print('\n', name, '; count = ', len(counter), sep='')
-    for k, count in sorted(counter.items(), key=lambda p: p[1]):
-      print('{:>5}: {}'.format(count, k))
-
+    try:
+      print('\n', name, '; count = ', len(counter), sep='')
+      for k, count in sorted(counter.items(), key=lambda p: p[1]):
+        try:
+          print('{:>5}: {}'.format(count, k))
+        except:
+          errL('error for key:', k)
+          raise
+    except:
+      errL('error for counter:', name)
+      raise
 
 print('messages used:', message_count)
 print('messages skipped:', skip_count)

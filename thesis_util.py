@@ -6,6 +6,7 @@ from __future__ import print_function
 from __future__ import unicode_literals
 
 import calendar
+import codecs
 import datetime
 import sys
 import pickle
@@ -15,9 +16,16 @@ import email.header
 import nltk.tokenize
 from pprint import pprint
 
+# wrap sys.stdout with a utf-8 stream writer
+# this fixes ascii encoding errors when redirecting output to a file.
+sys.stdout = codecs.getwriter('utf-8')(sys.stdout) 
+
 
 address_filter_path = 'slaffont-address-filter.txt'
 
+
+def errL(*items):
+  print(*items, file=sys.stderr)
 
 def progress(i):
   if i % 1000 == 0:
@@ -58,7 +66,7 @@ def load_filter(filter_path):
       line = raw_line.decode('utf-8').strip()
       choice, space, address = line.partition(' ')
       if not space or choice not in '+-': # partition failed or bad choice symbol
-        print('bad filter line:', repr(line))
+        errL('bad filter line:', repr(line))
         sys.exit(1)
       filter_dict[address] = (choice == '+')
   return filter_dict
