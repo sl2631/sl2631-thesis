@@ -7,26 +7,28 @@ from __future__ import unicode_literals
 import collections
 import sys
 import re
-import nltk
+import itertools
 import thesis_util
 
 from thesis_util import *
 from pprint import pprint
 
 
-modes = { 'scan', 'dump' }
+modes = { 'count', 'dump', 'sentence' }
+
+in_path = 'slaffont-emails/all_mail.pickle'
 
 
 # regexes remove uninteresting parts of messages
-# two basic categories; those that scan across lines (DOTALL) and those that matcha  single line.
+# two basic categories; those that scan across lines (DOTALL) and those that match a single line.
 scrub_regexes = \
 [re.compile(p, flags=re.DOTALL | re.MULTILINE) for p in [
 # patterns that scan across lines need dot to include \n
-  r'^On [^\n]+ at [^\n]+, [^\n]+ ?wrote:.*',
-  r'^----- Original Message -----.*',
-  r'^------Original Message------.*',
+  r'^On [^\n]+ (at )?[^\n]+, [^\n]+ ?wrote:.*',
+  r'^-+ *Original Message *-+.*',
   r'^Sent from my .+',
   r'^Admissions, Special Events, Alumni Coordinator.*',
+  r'^________________________________.+This message is solely for the use of the intended recipient.+',
 ]] + \
 [re.compile(p, flags=re.MULTILINE) for p in [
 # patterns that scan per line need ^ to match each start of line
@@ -40,7 +42,8 @@ scrub_regexes = \
 
 def error(msg):
   errL('error:', msg)
-  errL('specify mode as first argument; options are:', modes)
+  errL('usage: analyze-emails.py MODE SENDER PHRASE')
+  errL('available modes:', *modes)
   sys.exit(1)
 
 try:
@@ -49,28 +52,26 @@ try:
     error('invalid mode')
 except IndexError:
   error('no mode specified')
+is_mode_count = (mode == 'count')
 is_mode_dump = (mode == 'dump')
-is_mode_scan = (mode == 'scan')
+is_mode_sentence = (mode == 'sentence')
 
-in_paths = sys.argv[2:]
-if not in_paths:
-  in_paths = ['slaffont-emails/all_mail.pickle']
+args = sys.argv[2:]
+target_sender = args[0]
+target_phrase = args[1]
 
-
-# stats
-message_count = 0
-skip_count = 0
-
-if is_mode_scan:
+if is_mode_count:
   stats = collections.defaultdict(collections.Counter)
   def count(group, key):
     stats[group][key] += 1
   word_counter = stats['words']
-  non_word_char_counter = stats['non-word-chars']
 else:
   def count(group, key):
     pass
 
+if is_mode_sentence:
+  if not target_phrase:
+    error('sentence mode requires a non-empty target phrase')
 
 def scrub(text):
   for r in scrub_regexes:
@@ -78,31 +79,90 @@ def scrub(text):
   return text
 
 
-# word_re captures splitting words; hyphen is allowed only as an internal character.
-word_re = re.compile(r"(\w(?:[-\w]*\w)?)")
+# word_re captures splitting words; hyphen and apostrophe allowed only as internal characters.
+word_re = re.compile(r"(\w(?:[-'\w]*\w)?)")
+space_re = re.compile(r'\s+')
 
-def scan(text):
+def count_text(text):
   tokens = word_re.split(text)
-  non_words = tokens[0::2]
-  words = tokens[1::2]
+  #non_words = tokens[0::2]
+  words = [t.lower() for t in tokens[1::2]]
   #print('tokens:', tokens)
   #print('words:', words)
   #print('non-words:', non_words)
   #print()
-  for t in non_words:
-    non_word_char_counter.update(t) # count individual chars
-  for t in words:
-    word_counter[t.lower()] += 1
+  #for t in non_words: non_word_char_counter.update(t) # count individual chars
+  word_counter.update(words)
 
 
 address_filter_neg = thesis_util.load_filter_neg(address_filter_path)
 
 
+def clean_text(text):
+  tokens = word_re.split(text)
+  #print('pre: ', text, tokens)
+  for i, t in enumerate(tokens):
+    if i % 2: continue # odd elements are words, which we leave alone
+    s = space_re.sub(' ', t) # replace arbitrary spacing with a single space char
+    tokens[i] = s
+  cleaned = ''.join(tokens)
+  #print('post:', cleaned, tokens)
+  return cleaned
+
+
+def find_target_phrase(text, start=0):
+  return text.find(target_phrase, start)
+
+
+def find_dot_rev(string, index):
+  for i in range(index, -1, -1): # step backwards
+    if string[i] == '.':
+      return i
+  return -1
+
+
+def extract_target_sentences(text):
+  start = 0
+  while start < len(text):
+    phrase_index = find_target_phrase(text, start)
+    if phrase_index < 0:
+      return
+    start = find_dot_rev(text, phrase_index - 1) + 1 # sentence begins after the preceding dot
+    end = text.find('.', phrase_index + len(target_phrase))
+    if end < 0:
+      end = len(text)
+    yield text[start:end + 1] # sentence includes terminating dot
+    start = end
+
+
+def print_message(addr_from, addr_to, subject, text):
+  print('=' * 96)
+  print(addr_from, '-', addr_to, '-', subject)
+  print('-' * 96)
+  print(text)
+
+
+def print_sentences(addr_from, addr_to, subject, text):
+  once = False
+  for sentence in itertools.chain(extract_target_sentences(subject), extract_target_sentences(text)):
+    if not once:
+      print('=' * 96)
+      print(addr_from, '-', addr_to, '-', subject)
+      print('-' * 96)
+      once = True
+    print(sentence.strip())
+
+
+
+# stats
+message_count = 0
+skip_count = 0
+
 def handle_message(index, message):
   global message_count, skip_count
   addr_from = email_or_sender(message['from'])
   addr_to = email_or_sender(message['to'])
-  if addr_from in address_filter_neg or addr_to in address_filter_neg:
+  if addr_from in address_filter_neg or addr_to in address_filter_neg or (target_sender and addr_from != target_sender):
     skip_count += 1
     count('skip-from', addr_from)
     count('skip-to', addr_to)
@@ -111,46 +171,50 @@ def handle_message(index, message):
   count('from', addr_from)
   count('to', addr_to)
 
-  # dump
   subject = message['subject']
   text = scrub(message['text'])
-  if is_mode_dump:
-    print('=' * 96)
-    print(addr_from, '-', addr_to, '-', subject)
-    print('-' * 96)
-    print(text)
-  else:
+
+  if is_mode_count:
     progress(index)
-  if is_mode_scan:
-    scan(subject)
-    scan(text)
+    count_text(subject)
+    count_text(text)
+
+  if is_mode_dump:
+    if not target_phrase or find_target_phrase(clean_text(subject)) >= 0 or find_target_phrase(clean_text(text)) >= 0:
+      print_message(addr_from, addr_to, subject, text)
+
+  elif is_mode_sentence:
+    print_sentences(addr_from, addr_to, clean_text(subject), clean_text(text))
 
 
-for in_path in in_paths:
-  messages = thesis_util.read_pickle(in_path)
-  print('\n', in_path, sep='')
-  for i, m in enumerate(messages):
-    try:
-      handle_message(i, m)
-    except:
-      errL('error at index:', i)
-      raise
 
-if is_mode_scan:
+messages = thesis_util.read_pickle(in_path)
+print(in_path)
+for i, m in enumerate(messages):
+  try:
+    handle_message(i, m)
+  except:
+    errL('error at index:', i)
+    raise
+
+if is_mode_count:
   errL() # for progress line
   for name, counter in sorted(stats.items()):
     try:
       print('\n', name, ': count = ', len(counter), sep='')
       for k, count in sorted(counter.items(), key=lambda p: (p[1], p[0])):
         try:
-          print('{:>5}: {}'.format(count, repr(k) if k in ' \n\r\t\v' else k))
+          print('{:>5}: {}'.format(count, k))
         except:
           errL('error for key:', k)
           raise
     except:
       errL('error for counter:', name)
       raise
+  print('\nall non-unique words:')
+  word_items = sorted(word_counter.items(), key=lambda p: (-p[1], p[0]))
+  print(*(p[0] for p in word_items if p[1] > 1))
 
-
+print()
 print('messages used:', message_count)
 print('messages skipped:', skip_count)
