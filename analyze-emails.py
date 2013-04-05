@@ -1,4 +1,5 @@
 #!/usr/bin/env python2.7
+# coding=utf-8
 
 from __future__ import print_function
 from __future__ import unicode_literals
@@ -7,7 +8,6 @@ import collections
 import sys
 import re
 import nltk
-import nltk.stem
 import thesis_util
 
 from thesis_util import *
@@ -16,7 +16,6 @@ from pprint import pprint
 
 modes = { 'scan', 'dump' }
 
-word_re = re.compile("^[-'\w]+$")
 
 # regexes remove uninteresting parts of messages
 # two basic categories; those that scan across lines (DOTALL) and those that matcha  single line.
@@ -35,23 +34,6 @@ scrub_regexes = \
   r'^You are currently subscribed to .*\n?',
   r'^To unsubscribe send a blank email to .*\n?',
 ]]
-
-
-# NLP tools
-
-_lemmatizer = nltk.stem.WordNetLemmatizer()
-def lemmatize(word):
-  '''
-  returns word unchanged if not found. does not appear to handle the following:
-  - gerunds, e.g. 'running'
-  - irregular past tense, e.g. 'ran'
-  '''
-  return _lemmatizer.lemmatize(word)
-
-
-_lancaster_stemmer = nltk.stem.lancaster.LancasterStemmer()
-def stem_heavy(word):
-  return _lancaster_stemmer.stem(word)
 
 
 # command line args
@@ -83,8 +65,8 @@ if is_mode_scan:
   stats = collections.defaultdict(collections.Counter)
   def count(group, key):
     stats[group][key] += 1
-  words = stats['words']
-  non_words = stats['non-words']
+  word_counter = stats['words']
+  non_word_char_counter = stats['non-word-chars']
 else:
   def count(group, key):
     pass
@@ -96,15 +78,21 @@ def scrub(text):
   return text
 
 
+# word_re captures splitting words; hyphen is allowed only as an internal character.
+word_re = re.compile(r"(\w(?:[-\w]*\w)?)")
+
 def scan(text):
-  sentences = thesis_util.sent_word_tokenize(text) # nested sentence->words
-  for sentence in sentences:
-    for t in sentence:
-      m =  word_re.match(t)
-      if m:
-        words[t.lower()] += 1
-      else:
-        non_words[t.lower()] += 1
+  tokens = word_re.split(text)
+  non_words = tokens[0::2]
+  words = tokens[1::2]
+  #print('tokens:', tokens)
+  #print('words:', words)
+  #print('non-words:', non_words)
+  #print()
+  for t in non_words:
+    non_word_char_counter.update(t) # count individual chars
+  for t in words:
+    word_counter[t.lower()] += 1
 
 
 address_filter_neg = thesis_util.load_filter_neg(address_filter_path)
@@ -112,8 +100,8 @@ address_filter_neg = thesis_util.load_filter_neg(address_filter_path)
 
 def handle_message(index, message):
   global message_count, skip_count
-  addr_from = message['from']
-  addr_to = message['to']
+  addr_from = email_or_sender(message['from'])
+  addr_to = email_or_sender(message['to'])
   if addr_from in address_filter_neg or addr_to in address_filter_neg:
     skip_count += 1
     count('skip-from', addr_from)
@@ -152,16 +140,17 @@ if is_mode_scan:
   errL() # for progress line
   for name, counter in sorted(stats.items()):
     try:
-      print('\n', name, '; count = ', len(counter), sep='')
-      for k, count in sorted(counter.items(), key=lambda p: p[1]):
+      print('\n', name, ': count = ', len(counter), sep='')
+      for k, count in sorted(counter.items(), key=lambda p: (p[1], p[0])):
         try:
-          print('{:>5}: {}'.format(count, k))
+          print('{:>5}: {}'.format(count, repr(k) if k in ' \n\r\t\v' else k))
         except:
           errL('error for key:', k)
           raise
     except:
       errL('error for counter:', name)
       raise
+
 
 print('messages used:', message_count)
 print('messages skipped:', skip_count)

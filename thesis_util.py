@@ -14,7 +14,6 @@ import email
 import email.header
 import re
 
-import nltk.tokenize
 from pprint import pprint
 
 # wrap sys.stdout with a utf-8 stream writer
@@ -98,9 +97,4 @@ def load_filter_neg(filter_path):
   'set of blacklisted filter items.'
   filter_dict = load_filter(filter_path)
   return set(k for k, v in filter_dict.items() if not v)
-
-
-def sent_word_tokenize(string):
-  return [nltk.tokenize.word_tokenize(sentence) for sentence in nltk.tokenize.sent_tokenize(string)]
-
 
