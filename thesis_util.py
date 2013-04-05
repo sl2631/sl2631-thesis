@@ -12,6 +12,7 @@ import sys
 import pickle
 import email
 import email.header
+import re
 
 import nltk.tokenize
 from pprint import pprint
@@ -22,6 +23,21 @@ sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
 
 
 address_filter_path = 'slaffont-address-filter.txt'
+
+
+
+# approximate email regex; ignores the following special characters, which may only be used within quotations.
+# space, "(),:;<>@[\]
+# comments (leading or trailing parentheticals) are also ignored.
+# International characters above U+007F are allowed; we allow up to the max code point.
+# use ur prefix to only escape \u and \U.
+email_re = re.compile(ur"[a-zA-Z0-9!#$%&'*+-/=?^_`{|}~.\u007f-\U0010FFFF]+@[a-zA-Z0-9.-]+")
+
+
+def email_or_sender(sender):
+  s = sender.lower() # email is technically case sensitive but we do this to increase filter hits
+  m = email_re.search(s)
+  return m.group(0) if m else s
 
 
 def errL(*items):

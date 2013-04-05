@@ -5,7 +5,6 @@ from __future__ import unicode_literals
 
 import sys
 import pickle
-import re
 import thesis_util
 from thesis_util import address_filter_path
 from pprint import pprint
@@ -21,32 +20,25 @@ except IOError:
   print('no existing filter:', address_filter_path)
   address_filter_dict = {}
 
-
-email_re = re.compile('<(.+)>')
 ff = open(address_filter_path, 'a')
 
 def handle_message(message):
-  sender = message['from']
-  if not sender: # some from headers were missing
+  sender = message['from'].lower()
+  if not sender: # from header may be missing
     print('missing sender: uid:', message['uid'])
     return
-  m = email_re.search(sender)
-  if m:
-    address = m.group(1)
-  else:
-    # just assume that the whole sender string is the address
-    # TODO: we could use another regex to validate this address but it's a pain
-    address = sender
+  address = thesis_util.email_or_sender(sender)
   if address in address_filter_dict:
     return # we have already created a filter rule for this address
 
+  print('\nfrom: {from}\nto: {to}\nsubject: {subject}'.format(**message))
   # present the user with a choice
   choice = None
   while choice not in {'y', 'n'}:
     if choice:
-      print('invalid choice:', choice)
-    prompt = '\nfrom: {from}\nto: {to}\nsubject: {subject}\n(y/n)> '.format(**message)
-    choice = raw_input(prompt.encode('utf-8')).strip()
+      print('invalid choice')
+    prompt = 'address: {}\n(y/n)> '.format(address)
+    choice = raw_input(prompt).strip()
   allowed = (choice == 'y')
   address_filter_dict[address] = allowed
   filter_string = '{} {}\n'.format(('+' if allowed else '-'), address)
