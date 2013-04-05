@@ -5,8 +5,7 @@ from __future__ import unicode_literals
 
 import sys
 import pickle
-import thesis_util
-from thesis_util import address_filter_path
+from thesis_util import *
 from pprint import pprint
 
 
@@ -15,7 +14,7 @@ if not in_paths:
   in_paths = ['slaffont-emails/all_mail.pickle']
 
 try:
-  address_filter_dict = thesis_util.load_filter(address_filter_path)
+  address_filter_dict = load_filter(address_filter_path)
 except IOError:
   print('no existing filter:', address_filter_path)
   address_filter_dict = {}
@@ -27,7 +26,7 @@ def handle_message(message):
   if not sender: # from header may be missing
     print('missing sender: uid:', message['uid'])
     return
-  address = thesis_util.email_or_sender(sender)
+  address = email_or_sender(sender)
   if address in address_filter_dict:
     return # we have already created a filter rule for this address
 
@@ -47,7 +46,7 @@ def handle_message(message):
   ff.flush()
 
 for in_path in in_paths:
-  messages = thesis_util.read_pickle(in_path)
+  messages = read_pickle(in_path)
   print(in_path, 'count:', len(messages))
   for message in messages:
     try:
