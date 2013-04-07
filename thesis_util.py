@@ -2,9 +2,6 @@
 thesis utility functions common across scripts.
 '''
 
-from __future__ import print_function
-from __future__ import unicode_literals
-
 import calendar
 import codecs
 import datetime
@@ -16,14 +13,8 @@ import re
 
 from pprint import pprint
 
-# wrap sys.stdout with a utf-8 stream writer
-# this fixes ascii encoding errors when redirecting output to a file.
-sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
-sys.stderr = codecs.getwriter('utf-8')(sys.stderr)
-
 
 address_filter_path = 'slaffont-address-filter.txt'
-
 
 
 # approximate email regex; ignores the following special characters, which may only be used within quotations.
@@ -31,7 +22,7 @@ address_filter_path = 'slaffont-address-filter.txt'
 # comments (leading or trailing parentheticals) are also ignored.
 # International characters above U+007F are allowed; we allow up to the max code point.
 # use ur prefix to only escape \u and \U.
-email_re = re.compile(ur"[a-zA-Z0-9!#$%&'*+-/=?^_`{|}~.\u007f-\U0010FFFF]+@[a-zA-Z0-9.-]+")
+email_re = re.compile(r"[a-zA-Z0-9!#$%&'*+-/=?^_`{|}~.\u007f-\U0010FFFF]+@[a-zA-Z0-9.-]+")
 
 
 def email_or_sender(sender):
@@ -55,18 +46,18 @@ def plabel(label, obj):
 
 
 def read_pickle(path):
-  with open(path) as f:
+  with open(path, 'rb') as f:
     return pickle.load(f)
 
 
 def write_pickle(obj, path):
-  with open(path, 'w') as f:
+  with open(path, 'wb') as f:
     pickle.dump(obj, f)
 
 
 def read_word_list(path):
   with open(path) as f:
-    return { line.decode('utf-8').strip() for line in f }
+    return { line.strip() for line in f }
 
 
 def dates_for_month(year, month):
@@ -79,7 +70,7 @@ def load_filter(filter_path):
   filter_dict = {}
   with open(filter_path) as f:
     for raw_line in f:
-      line = raw_line.decode('utf-8').strip()
+      line = raw_line.strip()
       choice, space, address = line.partition(' ')
       if not space or choice not in '+-': # partition failed or bad choice symbol
         errL('bad filter line:', repr(line))

@@ -1,7 +1,4 @@
-#!/usr/bin/env python2.7
-
-from __future__ import print_function
-from __future__ import unicode_literals
+#!/usr/bin/env python3
 
 import sys
 import pickle
@@ -42,7 +39,7 @@ def handle_message(message):
   address_filter_dict[address] = allowed
   filter_string = '{} {}\n'.format(('+' if allowed else '-'), address)
   print(filter_string, end='')
-  ff.write(filter_string.encode('utf-8'))
+  ff.write(filter_string)
   ff.flush()
 
 for in_path in in_paths:

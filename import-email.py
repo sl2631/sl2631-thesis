@@ -1,7 +1,4 @@
-#!/usr/bin/env python2.7
-
-from __future__ import print_function
-from __future__ import unicode_literals
+#!/usr/bin/env python3
 
 import imaplib
 import sys
@@ -13,9 +10,11 @@ from pprint import pprint
 
 
 server = 'imap.gmail.com'
-username, password, start_uid_str = sys.argv[1:4]
-start_uid = int(start_uid_str)
-labels_to_fetch = sys.argv[4:] # optional
+username, password, start_uid_str, end_uid_str = sys.argv[1:5]
+start_uid = int(start_uid_str) if start_uid_str else 0
+end_uid = int(end_uid_str) if end_uid_str else -1
+
+labels_to_fetch = sys.argv[5:] # optional
 
 root_dir = username + '-data'
 
@@ -46,7 +45,7 @@ def select_label(label):
   print('\nselect:', quoted)
   status, label_count = account.select(quoted)
   assert status == 'OK'
-  print('label_count:', status, label_count)
+  print('label count:', label_count[0].decode('utf-8'))
 
 
 def search_by_send_date(date):
@@ -69,31 +68,34 @@ def fetch_label(label):
   status, data = account.uid('search', None, 'ALL')
   assert status == 'OK'
   uids = data[0] # data is a list of space-separated uid list strings.
-  uid_list = [int(s) for s in uids.split()]
-  print('{} items'.format(len(uid_list)))
-
-  limit = -1
+  all_uid_list = sorted(int(s) for s in uids.split())
+  if not all_uid_list:
+    print('no items')
+    return
+  print('total range: [{}, {}]'.format(all_uid_list[0], all_uid_list[-1]))
+  uid_list = [i for i in all_uid_list if i >= start_uid and (end_uid < 0 or i < end_uid)]
+  if not uid_list:
+    print('no items in range')
+    return
+  print('{} items [{}, {}]'.format(len(uid_list), uid_list[0], uid_list[-1]))
   messages = []
   last_uid = 'none'
   try:
-    for index, uid in enumerate(uid_list):
-      if uid < start_uid:
-        continue
-      if limit >= 0 and index >= limit: # debug limit
-        break
+    for uid in uid_list:
       print("fetching:", uid, end='\r')
       sys.stdout.flush()
-      # uid is the name of the function for sending IMAP commands using UIDs instead of numerical indices
-      # uid is also the name of our local variable
-      status, data = account.uid('fetch', uid, "(RFC822)")
+      # uid is the name of the function for sending IMAP commands using UIDs instead of numerical indices.
+      # uid is also the name of our local variable.
+      status, data = account.uid('fetch', str(uid), "(RFC822)")
       assert status == 'OK'
-      messages.append(data)
+      messages.append((uid, data))
       last_uid = uid
-  except BaseException as e:
-    print('\nfailed at uid:', uid, '\n', e)
-  else:
+  except KeyboardInterrupt:
     print()
-  out_path = os.path.join(root_dir, '{}-{}-{}.pickle'.format(label_safe, start_uid, last_uid))
+  except:
+    traceback.print_exc()
+  print('\nstopped at uid:', uid, '\n')
+  out_path = os.path.join(root_dir, '{}-{:06}-{:06}.pickle'.format(label_safe, start_uid, last_uid))
   thesis_util.write_pickle(messages, out_path)
 
 
@@ -104,15 +106,19 @@ def fetch_all_labels():
   status, raw_list = account.list()
   assert status == 'OK'
   all_labels = []
-  for s in raw_list:
+  for b in raw_list:
+    s = b.decode('utf-8')
     m = contents_re.match(s)
     assert m
-    g = m.groups()
-    all_labels.append(g[2].decode('utf-8')) # for now we are only interested in the name
+    all_labels.append(m.group(3)) # for now we are only interested in the name
   print('\nall labels:')
   pprint(all_labels)
 
-  labels = [l for l in all_labels if (labels_to_fetch or not l in excluded_labels)]
+  if labels_to_fetch:
+    labels = labels_to_fetch
+  else:
+    labels = [l for l in all_labels if not l in excluded_labels]
+
   print('\nlabels:')
   pprint(labels)
 
@@ -125,4 +131,4 @@ def fetch_all_labels():
     fetch_label(label)
 
 
-labels_dict = fetch_all_labels()
+fetch_all_labels()

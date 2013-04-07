@@ -1,8 +1,4 @@
-#!/usr/bin/env python2.7
-# coding=utf-8
-
-from __future__ import print_function
-from __future__ import unicode_literals
+#!/usr/bin/env python3
 
 import collections
 import sys
@@ -16,8 +12,7 @@ from pprint import pprint
 
 modes = { 'count', 'dump', 'sentence' }
 
-in_path = 'slaffont-emails/all_mail.pickle'
-
+in_path = 'slaffont-data/all.pickle'
 
 # regexes remove uninteresting parts of messages
 # two basic categories; those that scan across lines (DOTALL) and those that match a single line.
@@ -47,7 +42,7 @@ def error(msg):
   sys.exit(1)
 
 try:
-  mode = unicode(sys.argv[1])
+  mode = sys.argv[1]
   if mode not in modes:
     error('invalid mode')
 except IndexError:
@@ -160,7 +155,7 @@ def print_sentences(addr_from, addr_to, subject, text):
 message_count = 0
 skip_count = 0
 
-def handle_message(index, message):
+def handle_message(index, uid, message):
   global message_count, skip_count
   addr_from = email_or_sender(message['from'])
   addr_to = email_or_sender(message['to'])
@@ -190,13 +185,13 @@ def handle_message(index, message):
 
 
 
-messages = thesis_util.read_pickle(in_path)
+message_dict = thesis_util.read_pickle(in_path)
 print(in_path)
-for i, m in enumerate(messages):
+for index, (uid, m) in enumerate(sorted(message_dict.items())):
   try:
-    handle_message(i, m)
+    handle_message(index, uid, m)
   except:
-    errL('error at index:', i)
+    errL('error at uid:', uid)
     raise
 
 if is_mode_count:
