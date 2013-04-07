@@ -18,7 +18,8 @@ from pprint import pprint
 
 # wrap sys.stdout with a utf-8 stream writer
 # this fixes ascii encoding errors when redirecting output to a file.
-sys.stdout = codecs.getwriter('utf-8')(sys.stdout) 
+sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
+sys.stderr = codecs.getwriter('utf-8')(sys.stderr)
 
 
 address_filter_path = 'slaffont-address-filter.txt'

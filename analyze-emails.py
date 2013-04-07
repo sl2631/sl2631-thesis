@@ -52,9 +52,10 @@ try:
     error('invalid mode')
 except IndexError:
   error('no mode specified')
-is_mode_count = (mode == 'count')
-is_mode_dump = (mode == 'dump')
-is_mode_sentence = (mode == 'sentence')
+
+is_mode_count     = (mode == 'count')
+is_mode_dump      = (mode == 'dump')
+is_mode_sentence  = (mode == 'sentence')
 
 args = sys.argv[2:]
 target_sender = args[0]
@@ -100,13 +101,13 @@ address_filter_neg = thesis_util.load_filter_neg(address_filter_path)
 
 def clean_text(text):
   tokens = word_re.split(text)
-  #print('pre: ', text, tokens)
+  #print('pre: ', text, tokens, file=sys.stderr)
   for i, t in enumerate(tokens):
     if i % 2: continue # odd elements are words, which we leave alone
     s = space_re.sub(' ', t) # replace arbitrary spacing with a single space char
     tokens[i] = s
   cleaned = ''.join(tokens)
-  #print('post:', cleaned, tokens)
+  #print('post:', cleaned, tokens, file=sys.stderr)
   return cleaned
 
 
@@ -122,9 +123,10 @@ def find_dot_rev(string, index):
 
 
 def extract_target_sentences(text):
+  lc_text = text.lower()
   start = 0
   while start < len(text):
-    phrase_index = find_target_phrase(text, start)
+    phrase_index = find_target_phrase(lc_text, start)
     if phrase_index < 0:
       return
     start = find_dot_rev(text, phrase_index - 1) + 1 # sentence begins after the preceding dot
@@ -179,7 +181,7 @@ def handle_message(index, message):
     count_text(subject)
     count_text(text)
 
-  if is_mode_dump:
+  elif is_mode_dump:
     if not target_phrase or find_target_phrase(clean_text(subject)) >= 0 or find_target_phrase(clean_text(text)) >= 0:
       print_message(addr_from, addr_to, subject, text)
 
