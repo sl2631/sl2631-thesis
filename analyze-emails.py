@@ -12,7 +12,6 @@ from pprint import pprint
 
 modes = { 'count', 'dump', 'sentence' }
 
-in_path = 'slaffont-data/all.pickle'
 
 # regexes remove uninteresting parts of messages
 # two basic categories; those that scan across lines (DOTALL) and those that match a single line.

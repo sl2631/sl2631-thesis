@@ -15,6 +15,7 @@ from pprint import pprint
 
 
 address_filter_path = 'slaffont-address-filter.txt'
+in_path = 'slaffont-data/all.pickle'
 
 
 # approximate email regex; ignores the following special characters, which may only be used within quotations.
