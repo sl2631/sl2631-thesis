@@ -18,12 +18,14 @@ address_filter_path = 'slaffont-address-filter.txt'
 in_path = 'slaffont-data/all.pickle'
 
 
-# approximate email regex; ignores the following special characters, which may only be used within quotations.
+# approximate email regex;
+# omits the single-quote as a valid char, as it is showing up in strange places.
+# ignores the following special characters, which may only be used within quotations.
 # space, "(),:;<>@[\]
 # comments (leading or trailing parentheticals) are also ignored.
 # International characters above U+007F are allowed; we allow up to the max code point.
 # use ur prefix to only escape \u and \U.
-email_re = re.compile(r"[a-zA-Z0-9!#$%&'*+-/=?^_`{|}~.\u007f-\U0010FFFF]+@[a-zA-Z0-9.-]+")
+email_re = re.compile(r"[a-zA-Z0-9!#$%&*+-/=?^_`{|}~.\u007f-\U0010FFFF]+@[a-zA-Z0-9.-]+")
 
 
 def email_or_sender(sender):

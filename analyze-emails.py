@@ -9,6 +9,7 @@ import thesis_util
 from thesis_util import *
 from pprint import pprint
 
+list_limit = 10
 
 modes = { 'count', 'dump', 'sentence' }
 
@@ -78,7 +79,7 @@ def scrub(text):
 word_re = re.compile(r"(\w(?:[-'\w]*\w)?)")
 space_re = re.compile(r'\s+')
 
-def count_text(text):
+def count_text(text, groups):
   tokens = word_re.split(text)
   #non_words = tokens[0::2]
   words = [t.lower() for t in tokens[1::2]]
@@ -87,7 +88,11 @@ def count_text(text):
   #print('non-words:', non_words)
   #print()
   #for t in non_words: non_word_char_counter.update(t) # count individual chars
+  # always count the words in the main counter
   word_counter.update(words)
+  # for each specific group, also count these words towards that group
+  for g in groups:
+    stats[g].update(words)
 
 
 address_filter_neg = thesis_util.load_filter_neg(address_filter_path)
@@ -172,8 +177,10 @@ def handle_message(index, uid, message):
 
   if is_mode_count:
     progress(index)
-    count_text(subject)
-    count_text(text)
+    sender_group = 'words from: ' + addr_from
+    groups = [sender_group]
+    count_text(subject, groups)
+    count_text(text, groups)
 
   elif is_mode_dump:
     if not target_phrase or find_target_phrase(clean_text(subject)) >= 0 or find_target_phrase(clean_text(text)) >= 0:
@@ -195,21 +202,39 @@ for index, (uid, m) in enumerate(sorted(message_dict.items())):
 
 if is_mode_count:
   errL() # for progress line
-  for name, counter in sorted(stats.items()):
+  for group, counter in sorted(stats.items()):
     try:
-      print('\n', name, ': count = ', len(counter), sep='')
-      for k, count in sorted(counter.items(), key=lambda p: (p[1], p[0])):
+      total = sum(counter.values())
+      print('\n', group, ': distinct = ', len(counter), '; total = ', total, sep='')
+      items = sorted((v, k) for k, v in counter.items())
+      for count, k in items[-list_limit-1:]:
         try:
-          print('{:>5}: {}'.format(count, k))
+          fraction = count / total
+          print('  {:.5f} {:>5}: {}'.format(fraction, count, k))
         except:
           errL('error for key:', k)
           raise
     except:
-      errL('error for counter:', name)
+      errL('error for group:', group)
       raise
-  print('\nall non-unique words:')
-  word_items = sorted(word_counter.items(), key=lambda p: (-p[1], p[0]))
-  print(*(p[0] for p in word_items if p[1] > 1))
+
+  print('\nword ratios')
+  words_total = sum(word_counter.values())
+
+  for group, counter in stats.items():
+    if group.startswith('words from: '):
+      from_total = sum(counter.values())
+      if from_total == 0:
+        continue
+      total_ratio = words_total / from_total
+      ratios = sorted((total_ratio * v / word_counter[k], k) for k, v in counter.items())
+      print('\nratios of ' + group)
+      print(*('  {:6.1f}: {}'.format(*r) for r in ratios[-list_limit:]), sep='\n')
+
+  if False:
+    print('\nall non-unique words:')
+    word_items = sorted(word_counter.items(), key=lambda p: (-p[1], p[0]))
+    print(*(p[0] for p in word_items if p[1] > 1))
 
 print()
 print('messages used:', message_count)
