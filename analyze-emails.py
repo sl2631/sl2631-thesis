@@ -132,27 +132,26 @@ def extract_target_sentences(text):
     end = text.find('.', phrase_index + len(target_phrase))
     if end < 0:
       end = len(text)
-    yield text[start:end + 1] # sentence includes terminating dot
+    yield text[start:end + 1].strip() # sentence includes terminating dot
     start = end
 
 
-def print_message(addr_from, addr_to, subject, text):
-  print('=' * 96)
-  print(addr_from, '-', addr_to, '-', subject)
-  print('-' * 96)
+def print_message(addr_from, addr_to, date, subject, text):
+  print('\nFROM:    ', addr_from,
+        '\nTO:      ', addr_to,
+        '\nDATE:    ', date,
+        '\nSUBJECT: ', subject)
+  print()
   print(text)
+  print()
 
 
-def print_sentences(addr_from, addr_to, subject, text):
+def print_sentences(addr_from, addr_to, date, subject, text):
   once = False
-  for sentence in itertools.chain(extract_target_sentences(subject), extract_target_sentences(text)):
-    if not once:
-      print('=' * 96)
-      print(addr_from, '-', addr_to, '-', subject)
-      print('-' * 96)
-      once = True
-    print(sentence.strip())
-
+  sentences = list(extract_target_sentences(subject)) + list(extract_target_sentences(text))
+  if not sentences:
+    return
+  print_message(addr_from, addr_to, date, subject, '\n'.join(sentences))
 
 
 # stats
@@ -172,6 +171,7 @@ def handle_message(index, uid, message):
   count('from', addr_from)
   count('to', addr_to)
 
+  date = message['date']
   subject = message['subject']
   text = scrub(message['text'])
 
@@ -184,10 +184,10 @@ def handle_message(index, uid, message):
 
   elif is_mode_dump:
     if not target_phrase or find_target_phrase(clean_text(subject)) >= 0 or find_target_phrase(clean_text(text)) >= 0:
-      print_message(addr_from, addr_to, subject, text)
+      print_message(addr_from, addr_to, date, subject, text)
 
   elif is_mode_sentence:
-    print_sentences(addr_from, addr_to, clean_text(subject), clean_text(text))
+    print_sentences(addr_from, addr_to, date, clean_text(subject), clean_text(text))
 
 
 
