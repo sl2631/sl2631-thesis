@@ -5,13 +5,12 @@ import sys
 import re
 import itertools
 import thesis_util
+import time as _time
 
 from thesis_util import *
 from pprint import pprint
 
 list_limit = 10
-
-modes = { 'count', 'dump', 'sentence' }
 
 
 # regexes remove uninteresting parts of messages
@@ -35,14 +34,45 @@ scrub_regexes = \
 
 # command line args
 
+modes = { 'count', 'dump', 'sentence' }
+
+
+def msg_key_from(msg_pair):
+  return email_or_sender(msg_pair[1]['from'])
+
+def msg_key_to(msg_pair):
+  return email_or_sender(msg_pair[1]['to'])
+
+def msg_key_date(msg_pair):
+  try:
+    date = msg_pair[1]['date']
+    return _time.mktime(_time.strptime(date, '%a, %d %b %Y %H:%M:%S +0000'))
+  except (KeyError, ValueError):
+    return 0
+
+def msg_key_subject(msg_pair):
+  return msg_pair[1]['subject'].lower().strip()
+
+sort_keys = {
+  'none'    : None,
+  'from'    : msg_key_from,
+  'to'      : msg_key_to,
+  'date'    : msg_key_date,
+  'subject' : msg_key_subject,
+}
+
+
 def error(msg):
   errL('error:', msg)
-  errL('usage: analyze-emails.py MODE SENDER PHRASE')
+  errL('usage: analyze-emails.py MODE SORT SENDER PHRASE')
   errL('available modes:', *modes)
+  errL('available sorts:', *sort_keys.keys())
   sys.exit(1)
 
+args = sys.argv[1:]
+
 try:
-  mode = sys.argv[1]
+  mode = args[0]
   if mode not in modes:
     error('invalid mode')
 except IndexError:
@@ -52,18 +82,23 @@ is_mode_count     = (mode == 'count')
 is_mode_dump      = (mode == 'dump')
 is_mode_sentence  = (mode == 'sentence')
 
-args = sys.argv[2:]
-target_sender = args[0]
-target_phrase = args[1]
+target_sort = args[1]
+target_sender = args[2]
+target_phrase = args[3]
 
 if is_mode_count:
   stats = collections.defaultdict(collections.Counter)
   def count(group, key):
     stats[group][key] += 1
   word_counter = stats['words']
+  sort_key = None
 else:
   def count(group, key):
     pass
+  try:
+    sort_key = sort_keys[target_sort]
+  except KeyError:
+    error('invalid sort')
 
 if is_mode_sentence:
   if not target_phrase:
@@ -193,7 +228,7 @@ def handle_message(index, uid, message):
 
 message_dict = thesis_util.read_pickle(in_path)
 print(in_path)
-for index, (uid, m) in enumerate(sorted(message_dict.items())):
+for index, (uid, m) in enumerate(sorted(message_dict.items(), key=sort_key)):
   try:
     handle_message(index, uid, m)
   except:
