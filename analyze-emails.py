@@ -156,6 +156,10 @@ def find_dot_rev(string, index):
   return -1
 
 
+def contains_phrase(text):
+  return find_target_phrase(clean_text(text.lower())) >= 0
+
+
 def extract_target_sentences(text):
   lc_text = text.lower()
   start = 0
@@ -177,24 +181,25 @@ def print_message(addr_from, addr_to, date, subject, text):
         '\nDATE:    ', date,
         '\nSUBJECT: ', subject)
   print()
-  print(text)
-  print()
+  print(text.strip())
+  print('\n' + '-' * 64)
 
 
 def print_sentences(addr_from, addr_to, date, subject, text):
   once = False
   sentences = list(extract_target_sentences(subject)) + list(extract_target_sentences(text))
   if not sentences:
-    return
+    return 0
   print_message(addr_from, addr_to, date, subject, '\n'.join(sentences))
-
+  return len(sentences)
 
 # stats
 message_count = 0
 skip_count = 0
+hit_count = 0
 
 def handle_message(index, uid, message):
-  global message_count, skip_count
+  global message_count, skip_count, hit_count
   addr_from = email_or_sender(message['from'])
   addr_to = email_or_sender(message['to'])
   if addr_from in address_filter_neg or addr_to in address_filter_neg or (target_sender and addr_from != target_sender):
@@ -218,11 +223,12 @@ def handle_message(index, uid, message):
     count_text(text, groups)
 
   elif is_mode_dump:
-    if not target_phrase or find_target_phrase(clean_text(subject)) >= 0 or find_target_phrase(clean_text(text)) >= 0:
+    if not target_phrase or contains_phrase(subject) or contains_phrase(text):
       print_message(addr_from, addr_to, date, subject, text)
+      hit_count += 1
 
   elif is_mode_sentence:
-    print_sentences(addr_from, addr_to, date, clean_text(subject), clean_text(text))
+    hit_count += print_sentences(addr_from, addr_to, date, clean_text(subject), clean_text(text))
 
 
 
@@ -272,5 +278,6 @@ if is_mode_count:
     print(*(p[0] for p in word_items if p[1] > 1))
 
 print()
-print('messages used:', message_count)
+print('messages used (matched sender and filters):', message_count)
 print('messages skipped:', skip_count)
+print('phrase matches:', hit_count)
