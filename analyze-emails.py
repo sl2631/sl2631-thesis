@@ -11,7 +11,7 @@ from thesis_util import *
 from pprint import pprint
 
 list_limit = 10
-
+skip_word_counts = True
 
 # regexes remove uninteresting parts of messages
 # two basic categories; those that scan across lines (DOTALL) and those that match a single line.
@@ -252,7 +252,7 @@ for index, (uid, m) in enumerate(sorted(message_dict.items(), key=sort_key)):
 if is_mode_count:
   errL() # for progress line
   for group, counter in sorted(stats.items()):
-    if group.startswith('words from: '):
+    if skip_word_counts and group.startswith('words from: '):
       continue
     try:
       total = sum(counter.values())
