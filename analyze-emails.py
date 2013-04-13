@@ -179,8 +179,9 @@ def count_target_sentences(text):
   return len(list(extract_target_sentences(text)))
 
 
-def print_message(addr_from, addr_to, date, subject, text):
-  print('\nFROM:    ', addr_from,
+def print_message(uid, addr_from, addr_to, date, subject, text):
+  print('\nUID:     ', uid,
+        '\nFROM:    ', addr_from,
         '\nTO:      ', addr_to,
         '\nDATE:    ', date,
         '\nSUBJECT: ', subject)
@@ -189,12 +190,12 @@ def print_message(addr_from, addr_to, date, subject, text):
   print('\n' + '-' * 64)
 
 
-def print_sentences(addr_from, addr_to, date, subject, text):
+def print_sentences(uid, addr_from, addr_to, date, subject, text):
   once = False
   sentences = list(extract_target_sentences(subject)) + list(extract_target_sentences(text))
   if not sentences:
     return 0
-  print_message(addr_from, addr_to, date, subject, '\n'.join(sentences))
+  print_message(uid, addr_from, addr_to, date, subject, '\n'.join(sentences))
   return len(sentences)
 
 # stats
@@ -232,11 +233,11 @@ def handle_message(index, uid, message):
 
   elif is_mode_dump:
     if not target_phrase or contains_phrase(subject) or contains_phrase(text):
-      print_message(addr_from, addr_to, date, subject, text)
+      print_message(uid, addr_from, addr_to, date, subject, text)
       hit_count += 1
 
   elif is_mode_sentence:
-    hit_count += print_sentences(addr_from, addr_to, date, clean_text(subject), clean_text(text))
+    hit_count += print_sentences(uid, addr_from, addr_to, date, clean_text(subject), clean_text(text))
 
 
 
