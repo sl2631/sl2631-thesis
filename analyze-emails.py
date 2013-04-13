@@ -88,12 +88,12 @@ target_phrase = args[3]
 
 if is_mode_count:
   stats = collections.defaultdict(collections.Counter)
-  def count(group, key):
-    stats[group][key] += 1
+  def count(group, key, inc=1):
+    stats[group][key] += inc
   word_counter = stats['words']
   sort_key = None
 else:
-  def count(group, key):
+  def count(group, key, inc=1):
     pass
   try:
     sort_key = sort_keys[target_sort]
@@ -175,6 +175,10 @@ def extract_target_sentences(text):
     start = end
 
 
+def count_target_sentences(text):
+  return len(list(extract_target_sentences(text)))
+
+
 def print_message(addr_from, addr_to, date, subject, text):
   print('\nFROM:    ', addr_from,
         '\nTO:      ', addr_to,
@@ -221,6 +225,10 @@ def handle_message(index, uid, message):
     groups = [sender_group]
     count_text(subject, groups)
     count_text(text, groups)
+    phrase_count = count_target_sentences(subject) + count_target_sentences(text)
+    count('phrase from', addr_from, inc=phrase_count)
+    count('phrase to', addr_to, inc=phrase_count)
+
 
   elif is_mode_dump:
     if not target_phrase or contains_phrase(subject) or contains_phrase(text):
@@ -244,6 +252,8 @@ for index, (uid, m) in enumerate(sorted(message_dict.items(), key=sort_key)):
 if is_mode_count:
   errL() # for progress line
   for group, counter in sorted(stats.items()):
+    if group.startswith('words from: '):
+      continue
     try:
       total = sum(counter.values())
       print('\n', group, ': distinct = ', len(counter), '; total = ', total, sep='')
