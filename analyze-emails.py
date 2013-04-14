@@ -146,6 +146,7 @@ def clean_text(text):
 
 
 def find_target_phrase(text, start=0):
+  assert target_phrase
   return text.find(target_phrase, start)
 
 
@@ -226,9 +227,10 @@ def handle_message(index, uid, message):
     groups = [sender_group]
     count_text(subject, groups)
     count_text(text, groups)
-    phrase_count = count_target_sentences(subject) + count_target_sentences(text)
-    count('phrase from', addr_from, inc=phrase_count)
-    count('phrase to', addr_to, inc=phrase_count)
+    if target_phrase:
+      phrase_count = count_target_sentences(subject) + count_target_sentences(text)
+      count('phrase from', addr_from, inc=phrase_count)
+      count('phrase to', addr_to, inc=phrase_count)
 
 
   elif is_mode_dump:
