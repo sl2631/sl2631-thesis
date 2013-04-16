@@ -31,6 +31,8 @@ scrub_regexes = \
   r'^To unsubscribe send a blank email to .*\n?',
 ]]
 
+address_filter_neg = thesis_util.load_filter_neg(address_filter_path)
+
 
 # command line args
 
@@ -64,7 +66,7 @@ sort_keys = {
 
 def error(msg):
   errL('error:', msg)
-  errL('usage: analyze-emails.py MODE SORT SENDER PHRASE')
+  errL('usage: analyze-emails.py MODE SORT SENDER [PHRASES...]')
   errL('available modes:', *modes)
   errL('available sorts:', *sort_keys.keys())
   sys.exit(1)
@@ -84,7 +86,7 @@ is_mode_sentence  = (mode == 'sentence')
 
 target_sort = args[1]
 target_sender = args[2]
-target_phrase = args[3]
+target_phrases = [s.lower() for s in args[3:]]
 
 if is_mode_count:
   stats = collections.defaultdict(collections.Counter)
@@ -101,8 +103,9 @@ else:
     error('invalid sort')
 
 if is_mode_sentence:
-  if not target_phrase:
+  if not target_phrases:
     error('sentence mode requires a non-empty target phrase')
+
 
 def scrub(text):
   for r in scrub_regexes:
@@ -130,24 +133,8 @@ def count_text(text, groups):
     stats[g].update(words)
 
 
-address_filter_neg = thesis_util.load_filter_neg(address_filter_path)
-
-
 def clean_text(text):
-  tokens = word_re.split(text)
-  #print('pre: ', text, tokens, file=sys.stderr)
-  for i, t in enumerate(tokens):
-    if i % 2: continue # odd elements are words, which we leave alone
-    s = space_re.sub(' ', t) # replace arbitrary spacing with a single space char
-    tokens[i] = s
-  cleaned = ''.join(tokens)
-  #print('post:', cleaned, tokens, file=sys.stderr)
-  return cleaned
-
-
-def find_target_phrase(text, start=0):
-  assert target_phrase
-  return text.find(target_phrase, start)
+  return space_re.sub(' ', text)
 
 
 def find_dot_rev(string, index):
@@ -157,27 +144,40 @@ def find_dot_rev(string, index):
   return -1
 
 
-def contains_phrase(text):
-  return find_target_phrase(clean_text(text.lower())) >= 0
+def texts_contain_phrases(*texts):
+  for text in texts:
+    clean_lc = clean_text(text).lower()
+    for phrase in target_phrases:
+      if clean_lc.find(phrase) >= 0:
+        return True
+  return False
 
 
-def extract_target_sentences(text):
-  lc_text = text.lower()
+def extract_sentences_with_phrase(text, lc_text, phrase):
   start = 0
   while start < len(text):
-    phrase_index = find_target_phrase(lc_text, start)
+    phrase_index = lc_text.find(phrase, start)
     if phrase_index < 0:
       return
     start = find_dot_rev(text, phrase_index - 1) + 1 # sentence begins after the preceding dot
-    end = text.find('.', phrase_index + len(target_phrase))
+    end = text.find('.', phrase_index + len(phrase))
     if end < 0:
       end = len(text)
     yield text[start:end + 1].strip() # sentence includes terminating dot
     start = end
 
 
-def count_target_sentences(text):
-  return len(list(extract_target_sentences(text)))
+def extract_sentences(texts):
+  'note: this will yield a sentence once for every phrase that it contains'
+  for text in texts:
+    clean = clean_text(text)
+    lc = clean.lower()
+    for phrase in target_phrases:
+      yield from extract_sentences_with_phrase(clean, lc, phrase)
+
+
+def count_sentences(*texts):
+  return len(list(extract_sentences(texts)))
 
 
 def print_message(uid, addr_from, addr_to, date, subject, text):
@@ -193,11 +193,12 @@ def print_message(uid, addr_from, addr_to, date, subject, text):
 
 def print_sentences(uid, addr_from, addr_to, date, subject, text):
   once = False
-  sentences = list(extract_target_sentences(subject)) + list(extract_target_sentences(text))
+  sentences = list(extract_sentences([subject, text]))
   if not sentences:
     return 0
   print_message(uid, addr_from, addr_to, date, subject, '\n'.join(sentences))
   return len(sentences)
+
 
 # stats
 message_count = 0
@@ -227,20 +228,19 @@ def handle_message(index, uid, message):
     groups = [sender_group]
     count_text(subject, groups)
     count_text(text, groups)
-    if target_phrase:
-      phrase_count = count_target_sentences(subject) + count_target_sentences(text)
-      count('phrase from', addr_from, inc=phrase_count)
-      count('phrase to', addr_to, inc=phrase_count)
-
+    if target_phrases:
+      phrase_count = count_sentences(subject, text)
+      if phrase_count:
+        count('phrase from', addr_from, inc=phrase_count)
+        count('phrase to', addr_to, inc=phrase_count)
 
   elif is_mode_dump:
-    if not target_phrase or contains_phrase(subject) or contains_phrase(text):
+    if not target_phrases or texts_contain_phrases(subject, text):
       print_message(uid, addr_from, addr_to, date, subject, text)
       hit_count += 1
 
   elif is_mode_sentence:
-    hit_count += print_sentences(uid, addr_from, addr_to, date, clean_text(subject), clean_text(text))
-
+    hit_count += print_sentences(uid, addr_from, addr_to, date, subject, text)
 
 
 message_dict = thesis_util.read_pickle(in_path)
