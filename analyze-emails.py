@@ -36,7 +36,7 @@ address_filter_neg = thesis_util.load_filter_neg(address_filter_path)
 
 # command line args
 
-modes = { 'count', 'dump', 'sentence' }
+modes = { 'count', 'dump', 'header', 'sentence' }
 
 
 def msg_key_from(msg_pair):
@@ -45,12 +45,6 @@ def msg_key_from(msg_pair):
 def msg_key_to(msg_pair):
   return email_or_sender(msg_pair[1]['to'])
 
-def msg_key_date(msg_pair):
-  try:
-    date = msg_pair[1]['date']
-    return _time.mktime(_time.strptime(date, '%a, %d %b %Y %H:%M:%S +0000'))
-  except (KeyError, ValueError):
-    return 0
 
 def msg_key_subject(msg_pair):
   return msg_pair[1]['subject'].lower().strip()
@@ -59,7 +53,6 @@ sort_keys = {
   'none'    : None,
   'from'    : msg_key_from,
   'to'      : msg_key_to,
-  'date'    : msg_key_date,
   'subject' : msg_key_subject,
 }
 
@@ -75,18 +68,19 @@ args = sys.argv[1:]
 
 try:
   mode = args[0]
-  if mode not in modes:
-    error('invalid mode')
+  target_sort = args[1]
+  target_sender = args[2]
+  target_phrases = [s.lower() for s in args[3:]]
 except IndexError:
-  error('no mode specified')
+  error('missing arguments')
 
+if mode not in modes:
+  error('invalid mode')
 is_mode_count     = (mode == 'count')
 is_mode_dump      = (mode == 'dump')
+is_mode_header    = (mode == 'header')
 is_mode_sentence  = (mode == 'sentence')
 
-target_sort = args[1]
-target_sender = args[2]
-target_phrases = [s.lower() for s in args[3:]]
 
 if is_mode_count:
   stats = collections.defaultdict(collections.Counter)
@@ -193,11 +187,12 @@ def print_message(uid, addr_from, addr_to, date, subject, text):
   print('\nUID:     ', uid,
         '\nFROM:    ', addr_from,
         '\nTO:      ', addr_to,
-        '\nDATE:    ', trim_date(date),
+        '\nDATE:    ', date, trim_date(date),
         '\nSUBJECT: ', subject)
-  print()
-  print(text.strip())
-  print('\n' + '-' * 64)
+  if text:
+    print()
+    print(text.strip())
+    print('\n' + '-' * 64)
 
 
 def print_sentences(uid, addr_from, addr_to, date, subject, text):
@@ -243,9 +238,9 @@ def handle_message(index, uid, message):
         count('phrase from', addr_from, inc=phrase_count)
         count('phrase to', addr_to, inc=phrase_count)
 
-  elif is_mode_dump:
+  elif is_mode_dump or is_mode_header:
     if not target_phrases or texts_contain_phrases(subject, text):
-      print_message(uid, addr_from, addr_to, date, subject, text)
+      print_message(uid, addr_from, addr_to, date, subject, text if is_mode_dump else None)
       hit_count += 1
 
   elif is_mode_sentence:
