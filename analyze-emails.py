@@ -184,11 +184,12 @@ def trim_date(date):
 
 
 def print_message(uid, addr_from, addr_to, date, subject, text):
-  print('\nUID:     ', uid,
-        '\nFROM:    ', addr_from,
-        '\nTO:      ', addr_to,
-        '\nDATE:    ', date, trim_date(date),
-        '\nSUBJECT: ', subject)
+  print()
+  #print('UID:     ', uid)
+  print('FROM:    ', addr_from)
+  print('TO:      ', addr_to)
+  print('DATE:    ', date, trim_date(date))
+  print('SUBJECT: ', subject)
   if text:
     print()
     print(text.strip())
