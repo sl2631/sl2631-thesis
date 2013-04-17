@@ -14,16 +14,20 @@ except IOError:
 
 ff = open(address_filter_path, 'a')
 
-def handle_message(message):
-  sender = message['from'].lower()
-  if not sender: # from header may be missing
-    print('missing sender: uid:', message['uid'])
-    return
-  address = email_or_sender(sender)
-  if address in address_filter_dict:
-    return # we have already created a filter rule for this address
 
+def handle_message(message):
+  handle_address(message['from'])
+  handle_address(message['to'])
+
+
+def handle_address(address):
+  address = email_or_sender(address.lower())
+  # just skip addresses with no sender or recipient
+  # skip if we have already created a filter rule for this address
+  if not address or address in address_filter_dict:
+    return 
   print('\nfrom: {from}\nto: {to}\nsubject: {subject}'.format(**message))
+
   # present the user with a choice
   choice = None
   while choice not in {'y', 'n'}:
