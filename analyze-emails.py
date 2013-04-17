@@ -180,11 +180,20 @@ def count_sentences(*texts):
   return len(list(extract_sentences(texts)))
 
 
+timezone_re = re.compile(r'[+-]\d+$')
+
+def trim_date(date):
+  m = timezone_re.search(date)
+  if m:
+    return date[:m.start()]
+  return date
+
+
 def print_message(uid, addr_from, addr_to, date, subject, text):
   print('\nUID:     ', uid,
         '\nFROM:    ', addr_from,
         '\nTO:      ', addr_to,
-        '\nDATE:    ', date,
+        '\nDATE:    ', trim_date(date),
         '\nSUBJECT: ', subject)
   print()
   print(text.strip())
