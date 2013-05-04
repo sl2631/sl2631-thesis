@@ -253,7 +253,7 @@ def handle_message(index, uid, message):
 
 
 message_dict = thesis_util.read_pickle(in_path)
-print(in_path)
+#print(in_path)
 for index, (uid, m) in enumerate(sorted(message_dict.items(), key=sort_key)):
   try:
     handle_message(index, uid, m)
