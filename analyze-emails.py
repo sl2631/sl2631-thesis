@@ -36,7 +36,7 @@ address_filter_neg = thesis_util.load_filter_neg(address_filter_path)
 
 # command line args
 
-modes = { 'count', 'dump', 'header', 'sentence' }
+modes = { 'count', 'dump', 'body', 'header', 'sentence' }
 
 
 def msg_key_from(msg_pair):
@@ -78,6 +78,7 @@ if mode not in modes:
   error('invalid mode')
 is_mode_count     = (mode == 'count')
 is_mode_dump      = (mode == 'dump')
+is_mode_body      = (mode == 'body')
 is_mode_header    = (mode == 'header')
 is_mode_sentence  = (mode == 'sentence')
 
@@ -239,9 +240,12 @@ def handle_message(index, uid, message):
         count('phrase from', addr_from, inc=phrase_count)
         count('phrase to', addr_to, inc=phrase_count)
 
-  elif is_mode_dump or is_mode_header:
+  elif is_mode_dump or is_mode_body or is_mode_header:
     if not target_phrases or texts_contain_phrases(subject, text):
-      print_message(uid, addr_from, addr_to, date, subject, text if is_mode_dump else None)
+      if is_mode_body:
+        print(text.strip(), end='\n\n\n')
+      else:
+          print_message(uid, addr_from, addr_to, date, subject, text if is_mode_dump else None)
       hit_count += 1
 
   elif is_mode_sentence:
