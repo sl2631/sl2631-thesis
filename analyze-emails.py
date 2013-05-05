@@ -13,23 +13,53 @@ from pprint import pprint
 list_limit = 10
 skip_word_counts = True
 
+body_separator = '\n\n' + '-=' * 16 + '\n\n'
+
 # regexes remove uninteresting parts of messages
 # two basic categories; those that scan across lines (DOTALL) and those that match a single line.
 scrub_regexes = \
 [re.compile(p, flags=re.DOTALL | re.MULTILINE) for p in [
 # patterns that scan across lines need dot to include \n
-  r'^On [^\n]+ (at )?[^\n]+, [^\n]+ ?wrote:.*',
+  r'^On [^\n]+ (at )?[^\n]+, [^\n]+(\n[^\n]+)? ?wrote:.*',
   r'^-+ *Original Message *-+.*',
+  r'^Begin forwarded message:.*',
+  r'^---------- Forwarded message ----------.*',
+  r'^From:.+?\nSent:.+?\nTo:.+?\nSubject:.+?\n',
+  r'^From:.+?\nDate:.+?\nSubject:.+?\nTo:.+?\n',
   r'^Sent from my .+',
   r'^Admissions, Special Events, Alumni Coordinator.*',
+  r'^This e-mail message and any attachments are intended only for the addressee.+',
+  r'^This message is solely for the use of the intended recipient.+',
   r'^________________________________.+This message is solely for the use of the intended recipient.+',
+  r'^-- *\nSophie Laffont\nMobile:.*',
+  r'^Sophie Laffont\nMobile:.*',
+  r'^keep calm and carry on...\nsophie laffont.*',
+  r'^-----------------------\nslaffo\n.*',
+  r'^Sophie Laffont\n917 371 3235.*',
+  r'^-----slaffo.*',
+  r'^--\n--------\nslaffo.*',
+  r'--\n--------\nmobile 1917 371 3235.*',
+
+
+
+
 ]] + \
 [re.compile(p, flags=re.MULTILINE) for p in [
 # patterns that scan per line need ^ to match each start of line
   r'^[> ]+.*\n',
   r'^You are currently subscribed to .*\n?',
   r'^To unsubscribe send a blank email to .*\n?',
+  r'^Sent fromwere  my iPad.*\n?',
+  r'^Sent via BlackBerry by AT&T.*\n?',
+  r'^-please excuse my poor iPhone typing skills-sophie laffont.*\n?',
+  r'^-sophie laffont.*\n?',
+  r'^-sophie laffont cell 917 371 3235-.*\n?',
+  r'^--pleez exsquuz bahd typppping- knugh to ifone. Soffye.*\n?',
+  r"^Sent from Pickle's iPhone.*\n?",
+  r'-----+\n?',
+  r'^\[image: Logo\].*\n?',
 ]]
+
 
 address_filter_neg = thesis_util.load_filter_neg(address_filter_path)
 
@@ -59,7 +89,7 @@ sort_keys = {
 
 def error(msg):
   errL('error:', msg)
-  errL('usage: analyze-emails.py MODE SORT SENDER [PHRASES...]')
+  errL('usage: analyze-emails.py MODE SORT FROM TO [PHRASES...]')
   errL('available modes:', *modes)
   errL('available sorts:', *sort_keys.keys())
   sys.exit(1)
@@ -67,10 +97,8 @@ def error(msg):
 args = sys.argv[1:]
 
 try:
-  mode = args[0]
-  target_sort = args[1]
-  target_sender = args[2]
-  target_phrases = [s.lower() for s in args[3:]]
+  mode, target_sort, target_from, target_to = args[:4]
+  target_phrases = [s.lower() for s in args[4:]]
 except IndexError:
   error('missing arguments')
 
@@ -103,6 +131,7 @@ if is_mode_sentence:
 
 
 def scrub(text):
+  text = text.replace('\r', '')
   for r in scrub_regexes:
     text = r.sub('', text)
   return text
@@ -215,7 +244,11 @@ def handle_message(index, uid, message):
   global message_count, skip_count, hit_count
   addr_from = email_or_sender(message['from'])
   addr_to = email_or_sender(message['to'])
-  if addr_from in address_filter_neg or addr_to in address_filter_neg or (target_sender and addr_from != target_sender):
+  if target_from and addr_from != target_from:
+    return
+  if target_to and addr_to != target_to:
+    return
+  if addr_from in address_filter_neg or addr_to in address_filter_neg:
     skip_count += 1
     count('skip-from', addr_from)
     count('skip-to', addr_to)
@@ -243,7 +276,7 @@ def handle_message(index, uid, message):
   elif is_mode_dump or is_mode_body or is_mode_header:
     if not target_phrases or texts_contain_phrases(subject, text):
       if is_mode_body:
-        print(text.strip(), end='\n\n\n')
+        print(text.strip(), end=body_separator)
       else:
           print_message(uid, addr_from, addr_to, date, subject, text if is_mode_dump else None)
       hit_count += 1
@@ -299,7 +332,8 @@ if is_mode_count:
     word_items = sorted(word_counter.items(), key=lambda p: (-p[1], p[0]))
     print(*(p[0] for p in word_items if p[1] > 1))
 
-print()
-print('messages used (matched sender and filters):', message_count)
-print('messages skipped:', skip_count)
-print('phrase matches:', hit_count)
+if not is_mode_body:
+  print()
+  print('messages used (matched sender and filters):', message_count)
+  print('messages skipped:', skip_count)
+  print('phrase matches:', hit_count)
